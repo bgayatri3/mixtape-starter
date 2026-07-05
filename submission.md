@@ -77,20 +77,67 @@ Pattern I noticed: every route delegates immediately to a service function. The 
 <!-- what inputs, what sequence of actions, or what data condition triggered the behavior. This is part of your root cause analysis entry -->
 ## Issue #1: My listening streak keeps resetting
 **1. Issue Reproduction**
-
+The issue of a streak resetting is illustrated in the `test_streak_increments_on_sunday(app, user)` function in `tests/test_streaks.py`. The input with the data of comparsion to increase the streak on Sunday produces this incorrect behavior. Anytime the GET endpoint is run for a user's streak this behavior is observed. 
 ```python
+def test_streak_increments_on_sunday(app, user):
+    """
+    Listening on Saturday and then Sunday should increment the streak.
+    """
+    with app.app_context():
+        u = db.session.get(User, user.id)
+        saturday = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 5
+        sunday = datetime(2024, 6, 16, 12, 0, 0, tzinfo=timezone.utc)    # weekday() == 6
+
+        update_listening_streak(u, saturday)
+        assert u.listening_streak == 1
+
+        update_listening_streak(u, sunday)
+        assert u.listening_streak == 2  # Should increment, not reset
 
 ```
+
 **2. How the root cause was found**
 <!-- Which files did you look at? What was your navigation path? What moment made you confident you'd found the right place — not just a suspicious area, but the specific cause? -->
+*Navigation path*: In `routes/users.py` the `streak(user_id)` function, took me to  `get_streak(user_id: str)` in `services/streak_service.py`. Here, I analyzed the function to check how streaks were updated. 
 
+*Why correct spot*: I read through the docstring at the top of them method, and identified the path relating to the issue was "If more than one day has passed: streak resets to 1" since the issue directly mentions resetting as the man issue. This meant that some condition that over a day has passed was incorrectly being met. Somewhere were the listening_streak was set to 1 was the exact location of the issue. 
 
 **3. The root cause**
 <!-- In plain English, explain exactly what was wrong. Not "there was a bug in the streak logic" — explain the specific condition, comparison, or missing step that caused the problem. -->
-The specific condition was 24 hours before at any time else than midnight. For example. 24 hours before 7/4 at 7PM would also include 7/3 at 8PM which is the day before. Thus, the cut_off was not properly counted. 
+The following condition was the issue
+```python
+if days_since_last == 0:
+        return
+    ## specifically today.weekday() 
+    elif days_since_last == 1 and today.weekday() != 6:
+        user.listening_streak += 1
+    else:
+        user.listening_streak = 1
+```
+This was a logic error because today.weekday() on Sunday was 6. Thus, no matter if the streak was maintained or now, on Sunday the streak would always be reset. 
 
-**4. Your fix and side-effect check**
+**4. Fix and Side-effect Check**
  <!-- What did you change and why does that change fix the root cause? What related functionality did you check afterward to confirm you didn't break anything? -->
+ To fix this issue, I removed the `today.weekday() != 6` from the elif statement. This fails in line with the expected behavior of python's `.weekday()` method where the day of the week has mon=0 and sunday=6 which doesn't matter to the streak calculation here. 
+
+ To ensure functionality elsewhere was not broken, I wrote another test to ensure that sunday -> monday streaks were incremented appropriately. Below is the test
+``` python
+def test_streak_increments_on_monday(app, user):
+    """
+    Listening on Sunday and then Monday should increment the streak.
+    """
+    with app.app_context():
+        u = db.session.get(User, user.id)
+        sunday = datetime(2024, 6, 16, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 6
+        monday = datetime(2024, 6, 17, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 7
+
+        update_listening_streak(u, sunday)
+        assert u.listening_streak == 1
+
+        update_listening_streak(u, monday)
+        assert u.listening_streak == 2  # Should increment, not reset
+```
+All 5 + the newly added test above passed. 
 
 ## Issue #x: xxxxx
 **1. Issue Reproduction**
