@@ -258,3 +258,4 @@ if song.shared_by != user_id:
 This fixed the issue by creating the notification if the rating was unique and successful. I then ran my test file again, and this time the test did pass. To check the other functionality, I simulated adding a playlist as well. 
 
 ## Git Log ---online 
+![alt text](image.png)
