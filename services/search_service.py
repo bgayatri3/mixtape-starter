@@ -23,8 +23,7 @@ def search_songs(query: str) -> list[dict]:
         'tags' list of tag name strings.
     """
     results = (
-        db.session.query(Song, song_tags.c.tag_id)
-        .outerjoin(song_tags, Song.id == song_tags.c.song_id)
+        db.session.query(Song)
         .filter(
             db.or_(
                 Song.title.ilike(f"%{query}%"),
@@ -34,7 +33,7 @@ def search_songs(query: str) -> list[dict]:
         .all()
     )
 
-    return [song.to_dict() for song, _ in results]
+    return [song.to_dict() for song in results]
 
 
 def get_song(song_id: str) -> dict:

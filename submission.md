@@ -1,4 +1,18 @@
 # Detailed Overview of Mixtape Starter
+## AI usage
+### AI Assistance Instance #1
+Task: Generate an initial architecture diagram and API flow for the submission and appeal endpoints.
+
+Output Used: ASCII diagrams illustrating the POST /submit and POST /appeal workflows.
+
+Your Revisions: Updated the diagrams to match the final implementation, including the Groq classifier, stylometric heuristics, confidence scoring, transparency labels. 
+
+### AI Assistance Instance #2
+Task: Generate function to create logging SQLite 
+
+Output Used: Python code generated for basic logging CRUD. 
+
+Your Revisions: Modified some of the SQL statements to improve column naming, and added a delete logs for easier testing.
 ## Codebase Map
 ```
 ai201-project5-mixtape-starter/
@@ -100,7 +114,7 @@ def test_streak_increments_on_sunday(app, user):
 <!-- Which files did you look at? What was your navigation path? What moment made you confident you'd found the right place — not just a suspicious area, but the specific cause? -->
 *Navigation path*: In `routes/users.py` the `streak(user_id)` function, took me to  `get_streak(user_id: str)` in `services/streak_service.py`. Here, I analyzed the function to check how streaks were updated. 
 
-*Why correct spot*: I read through the docstring at the top of them method, and identified the path relating to the issue was "If more than one day has passed: streak resets to 1" since the issue directly mentions resetting as the man issue. This meant that some condition that over a day has passed was incorrectly being met. Somewhere were the listening_streak was set to 1 was the exact location of the issue. 
+*Correct spot*: I read through the docstring at the top of them method, and identified the path relating to the issue was "If more than one day has passed: streak resets to 1" since the issue directly mentions resetting as the man issue. This meant that some condition that over a day has passed was incorrectly being met. Somewhere were the listening_streak was set to 1 was the exact location of the issue. 
 
 **3. The root cause**
 <!-- In plain English, explain exactly what was wrong. Not "there was a bug in the streak logic" — explain the specific condition, comparison, or missing step that caused the problem. -->
@@ -137,20 +151,55 @@ def test_streak_increments_on_monday(app, user):
         update_listening_streak(u, monday)
         assert u.listening_streak == 2  # Should increment, not reset
 ```
-All 5 + the newly added test above passed. 
+All 5 including the newly added test above passed. 
 
-## Issue #x: xxxxx
+## Issue #3: The same song keeps showing up twice in search
 **1. Issue Reproduction**
 <!-- What steps did you take to confirm the bug exists before touching any code? What inputs, sequence of actions, or data condition triggered the behavior? -->
+Initially, when I ran the search tests all of them passed. I looked through seed_data.py to see how the songs were added. I also examined the search functions (especially ` search_songs(query: str)` in `service/search_service.py`). The issue was produced by querying both tables Song, and the tag_id column from Song_tags. The following test from the given test suite now fails
+
+```python
+def test_search_no_duplicates_multi_tag_song(app, seed_songs):
+    """
+    A song with multiple tags should appear exactly once in search results.
+    """
+    with app.app_context():
+        results = search_songs("Crown Heights")
+        matching = [r for r in results if r["title"] == "Crown Heights Anthem"]
+        assert len(matching) == 1  # Should be 1, bug causes it to be 3
+```
 
 **2. How the root cause was found**
 <!-- Which files did you look at? What was your navigation path? What moment made you confident you'd found the right place — not just a suspicious area, but the specific cause? -->
+*Navigation Path*: I started with `search()` in `routes/songs.py` which calls `def search_songs(query: str) -> list[dict]` in `service/search_service.py`. 
+
+*Correct Spot*: I examined the method and realized the culprit here was how the queries of the 2 tables (Song and Tags) was handled. Duplicate enteries meant that the search with % was corrected, but somehow multiple rows were being pulled when joining the tables in the query. 
 
 **3. The root cause**
 <!-- In plain English, explain exactly what was wrong. Not "there was a bug in the streak logic" — explain the specific condition, comparison, or missing step that caused the problem. -->
+The rootcause is the outerjoin which leads to the raw SQL query to produce a row for each tag instead of just 1 row per song id. Outerjoin in SQL leads to duplicate rows being pulled.
 
-**4. Your fix and side-effect check**
+**4. Fix and side-effect check**
  <!-- What did you change and why does that change fix the root cause? What related functionality did you check afterward to confirm you didn't break anything? -->
+ I simplified the query by only searching through the Song table. The tags aren't useful for the search, so a query without them would be more effecient. The fix is below:
+
+```python
+results = (
+        db.session.query(Song) # we only need to query Song
+        ## removed the outerjoin here 
+        .filter(
+            db.or_(
+                Song.title.ilike(f"%{query}%"),
+                Song.artist.ilike(f"%{query}%"),
+            )
+        )
+        .all()
+    )
+
+    return [song.to_dict() for song in results]
+```
+
+ To ensure overall functionality, I ran the test suite and all the tests did pass. 
 
 ---
 ## Issue #x: xxxxx
