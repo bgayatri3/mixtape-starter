@@ -1,18 +1,19 @@
 # Detailed Overview of Mixtape Starter
 ## AI usage
 ### AI Assistance Instance #1
-Task: Generate an initial architecture diagram and API flow for the submission and appeal endpoints.
+Task: Understand how Python's datetime, UTC time zones, and date comparisons work while debugging an issue where listening streaks were not updating correctly.
 
-Output Used: ASCII diagrams illustrating the POST /submit and POST /appeal workflows.
+Output Used: Explanations of datetime, date, timezone.utc, weekday(), isoweekday(), and how subtracting dates produces a day difference (days_since_last).
 
-Your Revisions: Updated the diagrams to match the final implementation, including the Groq classifier, stylometric heuristics, confidence scoring, transparency labels. 
+Your Revisions: Compared the AI explanation against the existing implementation, determined the issue was not caused by UTC handling, identified that the unnecessary Sunday (weekday()) check prevented streaks from incrementing on consecutive Sundays, removed the condition, and verified the fix with tests.
 
 ### AI Assistance Instance #2
-Task: Generate function to create logging SQLite 
+Task: Generate a regression test for a missing notification when a user rates another user's shared song.
 
-Output Used: Python code generated for basic logging CRUD. 
+Output Used: A pytest test skeleton demonstrating how to create the necessary users, song, and rating, invoke the rate_song() service, and verify that a notification is created for the song's original sharer
 
-Your Revisions: Modified some of the SQL statements to improve column naming, and added a delete logs for easier testing.
+Your Revisions: Adapted the generated test to the project's existing fixtures, models, and notification schema, updated assertions to match the project's notification fields and message format, and used the failing test to validate the subsequent implementation of the notification logic in rate_song().
+
 ## Codebase Map
 ```
 ai201-project5-mixtape-starter/
@@ -134,7 +135,7 @@ This was a logic error because today.weekday() on Sunday was 6. Thus, no matter 
  <!-- What did you change and why does that change fix the root cause? What related functionality did you check afterward to confirm you didn't break anything? -->
  To fix this issue, I removed the `today.weekday() != 6` from the elif statement. This fails in line with the expected behavior of python's `.weekday()` method where the day of the week has mon=0 and sunday=6 which doesn't matter to the streak calculation here. 
 
- To ensure functionality elsewhere was not broken, I wrote another test to ensure that sunday -> monday streaks were incremented appropriately. Below is the test
+ To ensure functionality elsewhere was not broken, I wrote another test to ensure that sunday -> monday streaks were incremented appropriately. Below is the new test
 ``` python
 def test_streak_increments_on_monday(app, user):
     """
