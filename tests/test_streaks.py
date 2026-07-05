@@ -102,7 +102,7 @@ def test_streak_increments_on_monday(app, user):
     with app.app_context():
         u = db.session.get(User, user.id)
         sunday = datetime(2024, 6, 16, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 6
-        monday = datetime(2024, 6, 17, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 7
+        monday = datetime(2024, 6, 17, 12, 0, 0, tzinfo=timezone.utc)  # weekday() == 0
 
         update_listening_streak(u, sunday)
         assert u.listening_streak == 1
