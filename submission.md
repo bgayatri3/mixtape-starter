@@ -202,15 +202,59 @@ results = (
  To ensure overall functionality, I ran the test suite and all the tests did pass. 
 
 ---
-## Issue #x: xxxxx
+## Issue #4: I got notified when a friend added my song to a playlist but not when they rated it
 **1. Issue Reproduction**
 <!-- What steps did you take to confirm the bug exists before touching any code? What inputs, sequence of actions, or data condition triggered the behavior? -->
+I saw there were no tests for notifications. So, I created `tests/test_notify.py` with the following function. I inputed a new rating and then checked the notification table for a new entry. The mocked table was empty which demonstrates that no notification was fired. 
+
+```python
+def test_rate_song_notifies_song_sharer(app, seed_data):
+    """
+    Rating another user's song should notify the user who originally shared it.
+    """
+    with app.app_context():
+        owner = seed_data["owner"]
+        rater = seed_data["rater"]
+        song = seed_data["song"]
+
+        rate_song(
+            user_id=rater.id,
+            song_id=song.id,
+            score=5,
+        )
+
+        notifications = Notification.query.filter_by(
+            user_id=owner.id,
+            notification_type="song_rated",
+        ).all()
+
+        assert len(notifications) == 1
+        assert rater.username in notifications[0].body
+        assert song.title in notifications[0].body
+```
 
 **2. How the root cause was found**
 <!-- Which files did you look at? What was your navigation path? What moment made you confident you'd found the right place — not just a suspicious area, but the specific cause? -->
+*Navigation*: I started in `routes/songs.py` with the `def rate(song_id)` function. This traced to a function called `def rate_song(user_id: str, song_id: str, score: int) -> Rating:` in `services/notification_service.py`. 
+
+*Correct Spot*: I also looked at the structure of add_to_playlist since it follows a similar pattern of intial checks like verifying the originator of the song and the issuing a notification to the recommender. I noticed that this was missing in the rating function. 
+
 
 **3. The root cause**
 <!-- In plain English, explain exactly what was wrong. Not "there was a bug in the streak logic" — explain the specific condition, comparison, or missing step that caused the problem. -->
+The issue is that the check of the originator of the song and create_notification was simply never called in the rating function. The logic closely resembles the steps in adding a song to a playlist, and was simply missed here. 
 
 **4. Your fix and side-effect check**
  <!-- What did you change and why does that change fix the root cause? What related functionality did you check afterward to confirm you didn't break anything? -->
+ I added the following block to the function
+ ```python
+if song.shared_by != user_id:
+    create_notification(
+        user_id=song.shared_by,
+        notification_type="song_rated",
+        body=f"{rater.username} rated your song '{song.title}' {score}/5.",
+    )
+```
+This fixed the issue by creating the notification if the rating was unique and successful. I then ran my test file again, and this time the test did pass. To check the other functionality, I simulated adding a playlist as well. 
+
+## Git Log ---online 
